@@ -71,6 +71,7 @@ function smiley_clicked(contact_type, reaction, counter) {
 	add_contact(contact_type, reaction);
 	// increase counter
 	counter.textContent = counts[contact_type+"/"+reaction];
+	enable_undo();
 }
 /**
  *
@@ -97,17 +98,9 @@ function add_contact(contact_type, reaction) {
  */
 function get_counter(contact_type, reaction) {
 	console.log("get_counter "+contact_type+" "+reaction);
-	var reaction_class = $("#"+contact_type);
-	console.log(reaction_class);
-	var reactions = reaction_class.getElementsByClassName('smiley');
-	console.log(reactions);
-	for (var i = 0; i < reactions.length; ++i) {
-		var reaction_box = reactions[i];
-		var button = reaction_box.getElementsByTagName('button')[0];
-		if (button.classList[0] == reaction) {
-			return reaction_box.getElementsByClassName('counter')[0];
-		}
-	}
+	var id = "#"+contact_type+" .counter."+reaction.substr(9, 50);
+	console.log("id: "+id);
+	return $(id);
 }
 /**
  *
@@ -124,7 +117,8 @@ function undo() {
 	--counts[contact.contact_type+"/"+contact.reaction];
 	var counter = get_counter(contact.contact_type, contact.reaction);
 	console.log("counter: "+counter);
-	counter.text() = counts[contact.contact_type+"/"+contact.reaction];
+	//counter.text() = counts[contact.contact_type+"/"+contact.reaction];
+	counter.html(counts[contact.contact_type+"/"+contact.reaction]);
 
 	// remove contact
 	contacts.splice(contacts.length-1, 1);
@@ -135,8 +129,13 @@ function undo() {
  *
  */
 function enable_undo() {
+	console.log("enable_undo");
+	console.log(contacts);
 	if (contacts.length <= 0 || contacts[contacts.length-1].timestamp < last_synchronized) {
 		document.getElementById('button-undo').disabled = true;
+	}
+	else{
+		document.getElementById('button-undo').disabled = false;
 	}
 }
 /**
