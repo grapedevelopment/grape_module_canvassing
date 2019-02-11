@@ -1232,7 +1232,7 @@ function canvassing_ring_that_bell(){
 						<div class="reaction">
 							<div class="smiley">
 								<button class="reaction-unsuccessful btn btn-primary"></button>
-								<div class="counter">0</div>
+								<div class="counter unsuccessful">0</div>
 							</div>
 						</div>
 					</div>
@@ -1241,15 +1241,15 @@ function canvassing_ring_that_bell(){
 						<div class="reaction">
 							<div class="smiley">
 								<button class="reaction-negative btn btn-primary" title="negativ"></button>
-								<div class="counter">0</div>
+								<div class="counter negative">0</div>
 							</div>
 							<div class="smiley">
 								<button class="reaction-neutral btn btn-primary" title="neutral"></button>
-								<div class="counter">0</div>
+								<div class="counter neutral">0</div>
 							</div>
 							<div class="smiley">
 								<button class="reaction-positive btn btn-primary" title="positiv"></button>
-								<div class="counter">0</div>
+								<div class="counter positive">0</div>
 							</div>
 						</div>
 					</div>
@@ -1258,15 +1258,15 @@ function canvassing_ring_that_bell(){
 						<div class="reaction">
 							<div class="smiley">
 								<button class="reaction-negative btn btn-primary" title="negativ"></button>
-								<div class="counter">0</div>
+								<div class="counter negative">0</div>
 							</div>
 							<div class="smiley">
 								<button class="reaction-neutral btn btn-primary" title="neutral"></button>
-								<div class="counter">0</div>
+								<div class="counter neutral">0</div>
 							</div>
 							<div class="smiley">
 								<button class="reaction-positive btn btn-primary" title="positiv"></button>
-								<div class="counter">0</div>
+								<div class="counter positive">0</div>
 							</div>
 						</div>
 					</div>
@@ -1852,9 +1852,9 @@ function canvassing_get_logbook_electoral_ward($x_ward_id,$limit = false){
  *
  */
 function canvassing_html_ward_select_by_ou($ou_id,$election_id){
+	global $grape;
 	$html = '';
 	$districts = canvassing_get_electoral_districts_by_ou($ou_id,$election_id);
-	//$html.= "<pre>".print_r($districts,true)."</pre>";
 	foreach($districts as $item){
 		$html.= '<optgroup label="'.$item->name.'">';
 		//$html.= $item->name;
@@ -1881,9 +1881,12 @@ function canvassing_get_electoral_districts_by_ou($ou_id,$election_id){
 			WHERE `grape_x_eed_ou`.`ou_id` = $ou_id
 			AND `grape_x_elections_electoral_districts`.`election_id` = $election_id
 			ORDER BY `grape_electoral_districts`.`name`";
-	//$grape->output->content->html.= "<pre>$sql</pre>";
+	//$grape->output->content->html.= $grape->output->dump_var($sql);
 	$grape->db->query($sql);
-	return $grape->db->get_results();
+	$result = $grape->db->get_results();
+	//$grape->output->content->html.= $grape->output->dump_var($grape->db);
+	//$grape->output->content->html.= $grape->output->dump_var($result);
+	return $result;
 }
 /**
  *
