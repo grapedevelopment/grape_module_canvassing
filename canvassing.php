@@ -119,7 +119,7 @@ function canvassing_statistics(){
 		if($global_statistics->trials > 20){
 			$html = "<h2>Das geht ".($global_statistics->trials>100?"nur":"")." gemeinsam".($global_statistics->trials>100?"":" besser")."!</h2>";
 			$html.=  '<p>'.grape_number($global_statistics->trials).' gedrückte Klingelknöpfe und '.grape_number($global_statistics->contacts).' Kontakte im Rahmen der Kampagne "'.$campaign->name.'"</p>';
-			$html.=  '<p>Und nun? <a href="#" onclick="load_content(\'module=canvassing&campaign_id=$campaign_id\');">Weiter klingeln!</a></p>';
+			$html.=  '<p>Und nun? <a href="#" onclick="load_content(\'module=canvassing&campaign_id='.$campaign_id.'\');">Weiter klingeln!</a></p>';
 			$cache_data.= $grape->output->wrap_div($html);
 			
 			$html = "<h2>Unsere Fleißigsten</h2>";
