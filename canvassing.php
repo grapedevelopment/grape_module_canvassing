@@ -1192,7 +1192,7 @@ function canvassing_ring_that_bell(){
 				<select name="partner_id" id="partner_id" data-iconpos="left" class="form-control">
 					<option value="0">alleine</option>
 					<option value="-1">mit einem Mann ohne Account auf dieser Seite</option>
-					<option value="-2">mit einem Frau ohne Account auf dieser Seite</option>';
+					<option value="-2">mit einer Frau ohne Account auf dieser Seite</option>';
 					foreach($users as $user){
 						if($user->user_id != $grape->user->user_id){
 							$html.= '<option value="'.$user->user_id.'">mit '.$user->name.' '.$user->last_name.'</option>';
