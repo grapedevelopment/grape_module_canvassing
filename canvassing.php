@@ -60,7 +60,6 @@ function canvassing_run(){
 			break;
 		case "mail_street":
 			canvassing_mail_street();
-			canvassing_start();
 			break;
 		case "dump_contact_data":
 			canvassing_dump_contact_data();
@@ -2002,6 +2001,7 @@ function canvassing_get_election(){
  */
 function canvassing_mail_street(){
 	global $grape;
+	$show_start = true;
 	$html = "";
 	//print_r($_REQUEST);
 	$campaign_id = intval($_REQUEST["campaign_id"]);
@@ -2013,9 +2013,9 @@ function canvassing_mail_street(){
 		if($to_user){
 			$to_email = $to_user->email;
 			if($to_email){
-				$from_email = $user->email;
+				$from_email = $grape->user->email;
 				$subject = $_REQUEST["subject"];
-				$body = $_REQUEST["message"];
+				$body = nl2br($_REQUEST["message"]);
 				grape_send_mail($from_email,$to_email,$subject,$body);
 				$grape->output->result = "success";
 				$grape->output->message = "Deine Nachricht wurde verschickt.";
@@ -2086,8 +2086,9 @@ function canvassing_mail_street(){
 							<button type="submit" class="btn btn-primary">Abschicken</button>
 							
 						</form>';
-				$grape->output->result = "success";
-				$grape->output->message = "";
+				//$grape->output->result = "success";
+				//$grape->output->message = "";
+				$show_start = false;
 			}
 			else{
 				$grape->output->result = "error";
@@ -2102,6 +2103,9 @@ function canvassing_mail_street(){
 		}
 	}
 	$grape->output->content->html.= $grape->output->wrap_div($html);
+	if($show_start == true){
+		canvassing_start();
+	}
 }
 /**
  *
