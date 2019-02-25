@@ -90,8 +90,8 @@ function canvassing_build_menu(){
 	$grape->output->add_menu_item(array("url"=>URL."?module=canvassing&campaign_id=$campaign_id&job=regional_ranking","name"=>"Rangliste"));
 	$grape->output->add_menu_item(array("url"=>URL."?module=canvassing&campaign_id=$campaign_id&job=abandoned_streets","name"=>"Vergessenes"));
 	//$grape->output->content->html.= $grape->output->dump_var(grape_get_capability_of_current_user_for_ou($grape->user->ou_id));
+	$grape->output->add_menu_item(array("url"=>URL."?module=canvassing&campaign_id=$campaign_id&job=search_street","name"=>"Straße suchen"));
 	if(grape_user_has_capability(grape_get_capability_of_current_user_for_ou($grape->user->ou_id),"admin")){
-		$grape->output->add_menu_item(array("url"=>URL."?module=canvassing&campaign_id=$campaign_id&job=search_street","name"=>"Straße suchen"));
 		$grape->output->add_menu_item(array("url"=>URL."?module=canvassing&campaign_id=$campaign_id&job=dump_contact_data","name"=>"Kontaktdaten herunterladen"));
 		//$grape->output->add_menu_item(array("url"=>URL."?module=canvassing&campaign_id=$campaign_id&job=dump_street_data","name"=>"Straßendaten herunterladen"));
 	}
@@ -743,8 +743,96 @@ function canvassing_abandoned_streets(){
  */
 function canvassing_search_street(){
 	global $grape;
+	$campaign_id = intval($_REQUEST["campaign_id"]);
+	$ou_id = $grape->user->ou_id;
 	//$grape->output->content->html.= "<pre>Welcome at module ".$_REQUEST["module"]."</pre>";
 	canvassing_build_menu();
+	if(isset($_REQUEST["search_string"])){
+		$search_string = grape_escape($_REQUEST["search_string"]);
+		$html.= $search_string;
+		//SELECT * FROM `grape_streets` WHERE `name` LIKE "%straße%"
+		$sql = "SELECT `grape_streets`.*,
+				`grape_electoral_wards`.`code`,
+				`grape_electoral_wards`.`name` AS ward_name,
+				`grape_electoral_districts`.`name` AS district_name,
+				`canvassing_street_data`.`street_data_id`,
+				`grape_x_streets`.`x_street_id`,
+				CONCAT(`grape_users`.`name`,' ',SUBSTRING(`grape_users`.`last_name`,1,1),'.') AS user,
+					`grape_users`.`user_id`,
+					(CASE 
+						WHEN `done` IS NOT NULL 
+						THEN 'Straßenzug erledigt'
+						ELSE 
+							CASE 
+								WHEN (`comment` IS NOT NULL AND `comment` <> '')
+								THEN `comment`
+								ELSE 'Straßenzug reserviert'
+							END
+						END) AS my_comment
+				FROM `grape_streets`
+				LEFT JOIN `grape_x_streets` ON `grape_x_streets`.`street_id` = `grape_streets`.`street_id`
+				LEFT JOIN `grape_x_wards` ON `grape_x_wards`.`x_ward_id` = `grape_x_streets`.`x_ward_id`
+				LEFT JOIN `canvassing_street_data` ON `canvassing_street_data`.`x_street_id` = `grape_x_streets`.`x_street_id`
+				LEFT JOIN `grape_users` ON `grape_users`.`user_id` = `canvassing_street_data`.`locked_by`
+				LEFT JOIN `grape_electoral_wards` ON `grape_electoral_wards`.`electoral_ward_id` = `grape_x_wards`.`electoral_ward_id`
+				LEFT JOIN `grape_x_elections_electoral_districts` ON `grape_x_elections_electoral_districts`.`x_election_district_id` = `grape_x_wards`.`x_election_district_id`
+				LEFT JOIN `grape_electoral_districts` ON `grape_electoral_districts`.`electoral_district_id` = `grape_x_elections_electoral_districts`.`electoral_district_id`
+				LEFT JOIN `grape_campaigns` ON `grape_campaigns`.`election_id` = `grape_x_elections_electoral_districts`.`election_id`
+				LEFT JOIN `grape_x_eed_ou` ON `grape_x_eed_ou`.`x_election_district_id` = `grape_x_elections_electoral_districts`.`x_election_district_id`
+				WHERE `grape_x_eed_ou`.`ou_id` = $ou_id
+				AND `grape_campaigns`.`campaign_id` = $campaign_id
+				AND `grape_streets`.`name` LIKE '%$search_string%'
+				ORDER BY `grape_streets`.`name`
+				LIMIT 50";
+		$grape->db->query($sql);
+		$results = $grape->db->get_results();
+		$html.= $grape->output->dump_var($results);
+		$grape->output->content->html.= $grape->output->wrap_div($html);
+		if(count($results)>0){
+			$tmp_html.=  "<h2>Suchergebnis</h2>
+							<table>
+							  <thead>
+								<tr>
+								  <th>Straße</th>
+								  <th>Status</th>
+								</tr>
+							  </thead>";
+			foreach($results as $entry){
+				$tmp_html.= "<tr><td>".$entry->name." (".$entry->ward_name.")".print_r($entry,true)."</td><td>";
+				if(strlen($entry->user)>0){
+					if($grape->user->user_id != $entry->user_id) {
+						$tmp_html.= $entry->my_comment." ".$entry->user;
+						$tmp_html.= " <a href=\"#\" onclick=\"load_content_return('module=canvassing&campaign_id=".$campaign_id."&job=mail_street&street_data_id=".$entry->street_data_id."');\">anmailen</a>";
+					}
+					else{
+						$tmp_html.= "ist schon Dein Straßenabschnitt...";
+					}
+				}
+				else{
+					$tmp_html.= " <a href=\"#\" onclick=\"load_content_return('module=canvassing&campaign_id=".$campaign_id."&job=takeStreet&x_street_id=".$entry->x_street_id.");\">bearbeiten</a>";
+					 $tmp_html.= "bearbeiten";
+				}
+				$tmp_html.= "</td></tr>";
+			}
+			$tmp_html.=  "</table>";
+			$grape->output->content->html.= $grape->output->wrap_div($tmp_html);
+		}
+	}
+	else{
+		$html = '
+		<form method="post" action="index.php">
+			<input type="hidden" name="campaign_id" value="'.$campaign_id.'"/>
+			<input type="hidden" name="module" value="canvassing"/>
+			<input type="hidden" name="job" value="search_street"/>
+			<div class="form-group">
+				<label for="search_string">Suchtext</label><br/>
+				<input class="form-control" type="text" name="search_string" value=""/>
+			</div>
+			<a class="btn btn-secondary" href="#" role="button" onclick="load_content(\''.urldecode($_REQUEST["return"]).'\');">Abbrechen</a>
+			<button type="submit" class="btn btn-primary">Abschicken</button>
+		</form>';
+		$grape->output->content->html.= $grape->output->wrap_div($html);
+	}
 	
 }
 /**
