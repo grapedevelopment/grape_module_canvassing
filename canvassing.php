@@ -67,6 +67,9 @@ function canvassing_run(){
 		case "dump_street_data":
 			canvassing_dump_street_data();
 			break;
+		case "delete_data":
+			canvassing_delete_data();
+			break;
 		default:
 			canvassing_start();
 			break;
@@ -93,6 +96,7 @@ function canvassing_build_menu(){
 	$grape->output->add_menu_item(array("url"=>URL."?module=canvassing&campaign_id=$campaign_id&job=search_street","name"=>"Straße suchen"));
 	if(grape_user_has_capability(grape_get_capability_of_current_user_for_ou($grape->user->ou_id),"admin")){
 		$grape->output->add_menu_item(array("url"=>URL."?module=canvassing&campaign_id=$campaign_id&job=dump_contact_data","name"=>"Kontaktdaten herunterladen"));
+		$grape->output->add_menu_item(array("url"=>URL."?module=canvassing&campaign_id=$campaign_id&job=delete_data","name"=>"Daten löschen"));
 		//$grape->output->add_menu_item(array("url"=>URL."?module=canvassing&campaign_id=$campaign_id&job=dump_street_data","name"=>"Straßendaten herunterladen"));
 	}
 }
@@ -960,6 +964,63 @@ function canvassing_dump_street_data(){
 		grape_csv_dump($results,"tzt_street_data");
 	}
 	exit;
+}
+/**
+ * Deletion of contact and street data
+ * Includes confirmation dialogue
+ */
+function canvassing_delete_data(){
+	global $grape;
+	if(grape_user_has_capability(grape_get_capability_of_current_user_for_ou($grape->user->ou_id),"admin")){
+		$campaign_id = intval($_REQUEST["campaign_id"]);
+		if(isset($_REQUEST["confirmed"])){
+			if($_REQUEST["confirmed"]=="yes"){
+				$sql = "DELETE
+						FROM `canvassing_contacts`
+						WHERE `x_ward_id` IN
+							(
+								SELECT `x_ward_id`
+								FROM `grape_x_wards`
+								LEFT JOIN `grape_x_elections_electoral_districts` ON `grape_x_elections_electoral_districts`.`x_election_district_id` = `grape_x_wards`.`x_election_district_id`
+								LEFT JOIN `grape_campaigns` ON `grape_campaigns`.`election_id` = `grape_x_elections_electoral_districts`.`election_id`
+								LEFT JOIN `grape_x_eed_ou` ON `grape_x_eed_ou`.`x_election_district_id` = `grape_x_elections_electoral_districts`.`x_election_district_id`
+								WHERE `grape_campaigns`.`campaign_id` = $campaign_id
+								AND `grape_x_eed_ou`.`ou_id` = ".$grape->user->ou_id."
+							)
+						;";
+				$sql.= "DELETE
+						FROM `canvassing_street_data`
+						WHERE `x_street_id` IN
+							(
+								SELECT `x_street_id`
+								FROM `grape_x_streets`
+								LEFT JOIN `grape_x_wards` ON `grape_x_wards`.`x_ward_id` = `grape_x_streets`.`x_ward_id`
+								LEFT JOIN `grape_x_elections_electoral_districts` ON `grape_x_elections_electoral_districts`.`x_election_district_id` = `grape_x_wards`.`x_election_district_id`
+								LEFT JOIN `grape_campaigns` ON `grape_campaigns`.`election_id` = `grape_x_elections_electoral_districts`.`election_id`
+								LEFT JOIN `grape_x_eed_ou` ON `grape_x_eed_ou`.`x_election_district_id` = `grape_x_elections_electoral_districts`.`x_election_district_id`
+								WHERE `grape_campaigns`.`campaign_id` = $campaign_id
+								AND `grape_x_eed_ou`.`ou_id` = ".$grape->user->ou_id."
+							)
+						;";
+				$grape->db->query($sql);
+				$grape->output->message = '<strong>Ich habe alle Daten gelöscht</strong> (und hoffe, Du bereust es nicht später...).';
+			}
+			else{
+				$grape->output->message = 'Ich habe die Löschung der Daten auf Deinen Wunsch abgebrochen.';
+			}
+			$grape->output->result = "success";
+			canvassing_start();
+		}
+		else{
+			$html = "<p>Willst Du wirklich alle Straßen- und Kontaktdaten in ".$grape->user->ou_name." löschen?</p>";
+			$html.= "<a class=\"btn btn-primary\" href=\"#\" role=\"button\" onclick=\"load_content('module=canvassing&job=delete_data&confirmed=no&campaign_id=$campaign_id');\">Nein, ich will die Daten behalten</a> ";
+			$html.= "<a class=\"btn btn-primary\" href=\"#\" role=\"button\" onclick=\"load_content('module=canvassing&job=delete_data&confirmed=yes&campaign_id=$campaign_id');\">Ja, ich will die Daten löschen</a>";
+			$grape->output->content->html.= $grape->output->wrap_div($html);
+		}
+	}
+	else{
+		$grape->output->content->html.= $grape->output->wrap_div("Sorry, Deine Rechte reichen nicht aus.");
+	}
 }
 /**
  *
