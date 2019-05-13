@@ -153,11 +153,30 @@ function canvassing_statistics(){
 		$sunday_statistics = canvassing_get_statistics_success_timebased(6);
 		$html.= canvassing_timebased_statistics_2($sunday_statistics);
 		$cache_data.= $grape->output->wrap_div($html);
+		$grape->output->content->html.= $cache_data;
 		/*
 		
 		//print_r($weekday_statistics);
 		*/
-		$grape->output->content->html.= $cache_data;
+		$weekly_statistics = canvassing_get_weekly_statistics($campaign_id);
+		$html = "<table>
+					<tr>
+						<th>Wochenstart</th>
+						<th>Aktive</th>
+						<th>Versuche</th>
+						<th>Kontakte</th>
+						<th>persönlich</th>
+					</tr>";
+		foreach($weekly_statistics as $week_data){
+			$html.= "<tr>
+						<td>".$week_data->start."</td>
+						<td>".$week_data->results->users."</td>
+						<td>".$week_data->results->trials."</td>
+						<td>".$week_data->results->contacts."</td>
+						<td>".$week_data->results->face2face."</td>
+					</tr>";
+		}
+		$grape->output->content->html.= $grape->output->wrap_div($html);
 		$grape->output->help->html = "Die Statistik wird alle 24 Stunden neu generiert.";
 		/*file_put_contents($cache_filename,$cache_data);
 	}
@@ -196,7 +215,7 @@ function canvassing_get_statistics($campaign_id){
 						AND `grape_campaigns`.`campaign_id` = $campaign_id
 					) AS `trial_count`,
 					(
-						SELECT SUM(`canvassing_contacts`.`face2face`) 
+						SELECT SUM(`canvassing_contacts`.`contact`) 
 						FROM `canvassing_contacts` 
 						LEFT JOIN `grape_x_wards` ON `grape_x_wards`.`x_ward_id` = `canvassing_contacts`.`x_ward_id`
 						LEFT JOIN `grape_x_elections_electoral_districts` ON `grape_x_elections_electoral_districts`.`x_election_district_id` = `grape_x_wards`.`x_election_district_id`
@@ -209,7 +228,7 @@ function canvassing_get_statistics($campaign_id){
 						AND `grape_campaigns`.`campaign_id` = $campaign_id
 					) AS `contact_count`,
 					(
-						SELECT SUM(`canvassing_contacts`.`contact`) 
+						SELECT SUM(`canvassing_contacts`.`face2face`) 
 						FROM `canvassing_contacts` 
 						LEFT JOIN `grape_x_wards` ON `grape_x_wards`.`x_ward_id` = `canvassing_contacts`.`x_ward_id`
 						LEFT JOIN `grape_x_elections_electoral_districts` ON `grape_x_elections_electoral_districts`.`x_election_district_id` = `grape_x_wards`.`x_election_district_id`
@@ -228,6 +247,75 @@ function canvassing_get_statistics($campaign_id){
 		$results = $grape->db->get_results();
 		grape_cache_set($cache_key,$results);
 		return $results;
+	}
+}
+/**
+ *
+ */
+function canvassing_get_weekly_statistics($campaign_id){
+	global $grape;
+	$campaign_id = intval($campaign_id);
+	$cache_max_age = 0; // in minutes
+	$cache_key = "campaign_weekly_statistic_".$campaign_id;
+	$cache_content = grape_cache_get($cache_key,$cache_max_age);
+	if($cache_content !== false){
+		return $cache_content;
+	}
+	else{
+		$all_results = [];
+		$monday = date('Y-m-d', strtotime('Monday this week'));
+		$sql = 'SELECT
+					COUNT(DISTINCT `user_id`) AS users,
+					COUNT(`contact_id`) AS trials,
+					SUM(`contact`) AS contacts,
+					SUM(`face2face`) AS face2face
+				FROM `canvassing_contacts`
+				WHERE `timestamp` >= "'.$monday.' 00:00:00"';
+		$grape->db->query($sql);
+		$results = $grape->db->get_results();
+		$data = new stdClass();
+		$data->start = $monday;
+		$data->results = $results[0];
+		$data->query = $sql;
+		array_push($all_results,$data);
+		$monday = date('Y-m-d', strtotime('Monday this week'));
+		$last_monday = date('Y-m-d', strtotime('Monday -1 week'));
+		$sql = 'SELECT
+					COUNT(DISTINCT `user_id`) AS users,
+					COUNT(`contact_id`) AS trials,
+					SUM(`contact`) AS contacts,
+					SUM(`face2face`) AS face2face
+				FROM `canvassing_contacts`
+				WHERE `timestamp` >= "'.$last_monday.' 00:00:00"
+				AND `timestamp` < "'.$monday.' 00:00:00"';
+		$grape->db->query($sql);
+		$results = $grape->db->get_results();
+		$data = new stdClass();
+		$data->start = $monday;
+		$data->results = $results[0];
+		$data->query = $sql;
+		array_push($all_results,$data);
+		for($i=-1;$i>-15;$i--){
+			$monday = date('Y-m-d', strtotime('Monday '.$i.' week'));
+			$last_monday = date('Y-m-d', strtotime('Monday '.($i-1).' week'));
+			$sql = 'SELECT
+						COUNT(DISTINCT `user_id`) AS users,
+						COUNT(`contact_id`) AS trials,
+						SUM(`contact`) AS contacts,
+						SUM(`face2face`) AS face2face
+					FROM `canvassing_contacts`
+					WHERE `timestamp` >= "'.$last_monday.' 00:00:00"
+					AND `timestamp` < "'.$monday.' 00:00:00"';
+			$grape->db->query($sql);
+			$results = $grape->db->get_results();
+			$data = new stdClass();
+			$data->start = $monday;
+			$data->results = $results[0];
+			$data->query = $sql;
+			array_push($all_results,$data);
+		}
+		grape_cache_set($cache_key,$all_results);
+		return $all_results;
 	}
 }
 /**
@@ -988,7 +1076,8 @@ function canvassing_delete_data(){
 								AND `grape_x_eed_ou`.`ou_id` = ".$grape->user->ou_id."
 							)
 						;";
-				$sql.= "DELETE
+				$grape->db->query($sql);
+				$sql = "DELETE
 						FROM `canvassing_street_data`
 						WHERE `x_street_id` IN
 							(
@@ -1003,7 +1092,7 @@ function canvassing_delete_data(){
 							)
 						;";
 				$grape->db->query($sql);
-				$grape->output->message = '<strong>Ich habe alle Daten gelöscht</strong> (und hoffe, Du bereust es nicht später...).';
+				$grape->output->message = '<strong>Ich habe alle Daten gelöscht</strong> (und hoffe, Du bereust es nicht später...). ';
 			}
 			else{
 				$grape->output->message = 'Ich habe die Löschung der Daten auf Deinen Wunsch abgebrochen.';
@@ -1162,7 +1251,7 @@ function canvassing_start(){
 				}
 
 				$grape->output->content->html.=  "<p>Neu hier? Vielleicht hilft Dir unsere <a href=\"https://gruene.fritzmielert.de/Video_TZT.mp4\">Videoanleitung</a> weiter. Achtung! Nicht für Mobilgeräte geeignet, da sie 360MB auf die Waage bringt.</p>";*/
-	
+	$grape->output->help->html = "Hier beginnt Dein Tür-zu-Tür-Wahlkampf. Du kannst einen Wahlbezirk auswählen oder Du suchst über das Menü links oben direkt einen Straßenzug.";
 }
 /**
  *
